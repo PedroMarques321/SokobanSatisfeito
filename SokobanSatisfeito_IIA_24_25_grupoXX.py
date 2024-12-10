@@ -8,7 +8,34 @@
 # - Duas células vizinhas não podem ter o mesmo valor (duas regiões contíguas não podem ter a mesma cor).
 # Lembrem-se que ambos os inputs são dados, i.e., as caixas e a atribuição de células a listas de goals (os goals alcançáveis).
 def csp_possivel_solucao(caixas, goals_alcancaveis):
-    pass
+
+    # Variáveis são as coordenadas das caixas
+    variaveis = list(caixas)
+    
+    # Domínios são os goals alcançáveis para a posição de cada caixa
+    dominios = {}
+    for caixa in variaveis:
+        dominios[caixa] = goals_alcancaveis[caixa]
+        
+    # Encontrar vizinhos - células que têm goals em comum
+    neighbors = {}
+    for caixa1 in variaveis:
+        neighbors[caixa1] = []
+        goals1 = goals_alcancaveis[caixa1]
+        for caixa2 in variaveis:
+            if caixa1 != caixa2:
+                goals2 = goals_alcancaveis[caixa2]
+                # Verificar se têm algum goal em comum
+                if any(goal in goals1 for goal in goals2):
+                    neighbors[caixa1].append(caixa2)
+    
+    # Função de restrição
+    def constraint(A, a, B, b):
+        """Retorna True se as caixas A e B podem ser atribuídas aos goals a e b respectivamente"""
+        # Duas caixas não podem ter o mesmo goal
+        return a != b
+    
+    return CSP(variaveis, dominios, neighbors, constraint)
 
 
 # Para implementarem a função **`csp_find_alcancaveis_1goal`** devem formular o problema como um CSP em que:
@@ -26,7 +53,65 @@ def csp_possivel_solucao(caixas, goals_alcancaveis):
 # É por isso que a função `find_alcancaveis_1goal` faz sempre a procura com `order_domain_values = number_ascending_order`, 
 # como especificado acima.
 def csp_find_alcancaveis_1goal(s, goal):
-    pass
+    # Buscar todas as células navegáveis e proibidas como variáveis
+    variaveis = sorted(list(s.navegaveis.union(s.proibidas)))
+    
+    # Inicializar domínios - todas as células podem potencialmente alcançar (1) ou não alcançar (0) o goal
+    dominios = {}
+    for var in variaveis:
+        if var in s.calc_traps():  # Se a célula for uma trap, não chega ao goal
+            dominios[var] = [0]
+        else:
+            dominios[var] = [0, 1]
+    
+    # Definir o domínio do goal como [1] pois deve ser alcançável
+    dominios[goal] = [1]
+
+    # Encontrar vizinhos - células adjacentes onde as caixas podem ser empurradas
+    neighbors = {}
+    moves = [(0, 1), (0, -1), (1, 0), (-1, 0)]  # Right, Left, Down, Up
+    
+    for cell in variaveis:
+        neighbors[cell] = []
+        for dx, dy in moves:
+            next_cell = (cell[0] + dx, cell[1] + dy)
+            push_cell = (cell[0] - dx, cell[1] - dy)  # Célula necessária para empurrar
+            
+            # Verificar se o movimento é válido:
+            # 1. Próxima célula existe e é navegável
+            # 2. Célula necessária para empurrar existe e é navegável (necessária para o Sokoban empurrar)
+            # 3. Próxima célula não é uma trap
+            if (next_cell in variaveis and 
+                push_cell in variaveis and 
+                next_cell not in s.calc_traps()):
+                neighbors[cell].append(next_cell)
+    
+    # Remover vizinhos para células que não podem ter vizinhos
+    # Remove neighbors for cells that can't have neighbors
+    no_neighbors = [cell for cell in variaveis if not neighbors[cell]]
+    for cell in no_neighbors:
+        dominios[cell] = [0]  # Can't reach goal if no valid neighbors
+        for other_cell in neighbors:
+            if cell in neighbors[other_cell]:
+                neighbors[other_cell].remove(cell)
+    
+    def constraint(A, a, B, b):
+        """
+        Função de restrição:
+        - Se ambas as células não podem alcançar o goal (0,0), não tem problema
+        - Se as células têm valores diferentes (0,1 ou 1,0), não tem problema
+        - Se ambas as células podem alcançar o goal (1,1), elas devem ser adjacentes
+        """
+        if a == 0 and b == 0:
+            return True
+        if a != b:
+            return True
+        if a == 1 and b == 1:
+            # Verificar se as células são adjacentes
+            return abs(A[0] - B[0]) + abs(A[1] - B[1]) == 1
+        return True
+    
+    return CSP(variaveis, dominios, neighbors, constraint)
 
 # função que chama a função `find_alcancaveis_1goal` 
 # tantas vezes quantas o número de goals do puzzle. 
@@ -36,3 +121,4 @@ def find_alcancaveis_all_goals(s):
     sorted_goals = sorted(list(s.goal))
     pass # o vosso código aqui
     return result_alcancaveis
+
